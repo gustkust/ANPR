@@ -24,65 +24,65 @@ def basic_threshold(img, tolerance=35):
 
 class PyImageSearchANPR:
     def __init__(self, min_aspect_ratio=3, max_aspect_ratio=6, debug=False):
-        # store the minimum and maximum rectangular aspect ratio
-        # values along with whether or not we are in debug mode
         self.minAR = min_aspect_ratio
         self.maxAR = max_aspect_ratio
         self.debug = debug
 
     def debug_show(self, title, image, wait_key=True):
-        # check to see if we are in debug mode, and if so, show the
-        # image with the supplied title
         if self.debug:
             cv2.imshow(title, image)
             cv2.waitKey(0)
 
-    def locate_license_plate_candidates(self, gray, keep=5):
-        # at first we are different making morphological operations on the image
+    def locate_license_plate_candidates(self, gray):
+        self.debug_show("Gray", gray)
 
-        # looking for dark elements on light backgrounds with size of license plate
-        # to make them more distinct (MORPH_BLACKHAT option)
-        rectKern = np.array([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-                             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-                             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-                             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-                             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]], dtype=np.uint8)
-        blackhat = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, rectKern)
-        self.debug_show("After morph blackhat", blackhat)
+        # implementation of black hat morphology - closing (dilation after erosion) minus original image
+        # kernel is the size of a typical license plate
+        # it returns elements smaller than kernel and darker than their surroundings
+        rectKern = np.array([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]], dtype=np.uint8)
+        closing = cv2.dilate(gray, rectKern)
+        closing = cv2.erode(closing, rectKern)
+        blackhat = closing - gray
+        self.debug_show("Black hat", blackhat)
 
-        # Adding additional filter (X Sobel) to make background darker
+        # adding additional filter (X Sobel) to make background darker and vertical edges (which are more common in letters and numbers) more visible
         blackhat = blackhat / 255
-        sobel = np.array([[1, 0, -1],
+        xSobel = np.array([[1, 0, -1],
                           [2, 0, -2],
                           [1, 0, -1]])
-        sobel = sobel / 4
-        gradX = abs(convolve(blackhat, sobel))
-        gradX *= 255
-        gradX = gradX.astype("uint8")
-        self.debug_show("After sobel x", gradX)
+        xSobel = xSobel / 4
+        xSobel = abs(convolve(blackhat, xSobel))
+        xSobel *= 255
+        xSobel = xSobel.astype("uint8")
+        self.debug_show("Sobel X", xSobel)
 
-        # applying blur and again doing morphological operation and creating another threshold
-        gradX = cv2.GaussianBlur(gradX, (5, 5), 0)
-        self.debug_show("After sobel x", gradX)
-        gradX = cv2.morphologyEx(gradX, cv2.MORPH_CLOSE, rectKern)
+        # applying basic blur to make contours of bright surfaces wider
+        basicBlur = np.array([[1/9, 1/9, 1/9],
+                             [1/9, 1/9, 1/9],
+                             [1/9, 1/9, 1/9]])
+        blur = abs(convolve(xSobel, basicBlur))
+        self.debug_show("Blur", blur)
 
-        thresh = basic_threshold(gradX)
-        # thresh = cv2.threshold(gradX, 0, 255,
-        #                        cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
-        self.debug_show("After basic threshold", thresh)
+        # applying basic threshold to make brighter object more distinct
+        closing = cv2.dilate(blur, rectKern)
+        closing = cv2.erode(closing, rectKern)
+        thresh = basic_threshold(closing)
+        self.debug_show("Threshold", thresh)
 
-        # doing erosions and dilations to get rid of small white areas
-        thresh = cv2.erode(thresh, None, iterations=2)
-        thresh = cv2.dilate(thresh, None, iterations=2)
+        # doing bunch of erosions and dilutions to get rid of small white areas
+        thresh = cv2.erode(thresh, None, iterations=5)
+        thresh = cv2.dilate(thresh, None, iterations=5)
         self.debug_show("After erode and dilate", thresh)
 
         # finding biggest white areas in the image (by their contours)
-        cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL,
-                                cv2.CHAIN_APPROX_SIMPLE)
-        cnts = imutils.grab_contours(cnts)
-        cnts = sorted(cnts, key=cv2.contourArea, reverse=True)[:keep]
-        # return the list of contours
-        return cnts
+        contours = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours = imutils.grab_contours(contours)
+        contours = sorted(contours, key=cv2.contourArea, reverse=True)
+        return contours
 
     def locate_license_plate(self, gray, candidates,
                              clearBorder=False):
