@@ -103,47 +103,41 @@ def ANPR(image):
             config="-c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 --psm 7",
         )
     else:
-        print("Error: Mo possible license plate candidates found in the image.")
+        print("No possible license plate candidates found in the image.")
         return None, None
     return licensePlateText, licensePlateContour
 
 
-# import os
-# path = '/Users/gkust/Desktop/ANPR/Photos/Back'
-# files = os.listdir(path)
-#
-#
-# for index, file in enumerate(files):
-#     os.rename(os.path.join(path, file), os.path.join(path, ''.join([str(index + 1), '.jpg'])))
+directories = ["Catalog", "Front", "Back", "Road", "Real speed camera"]
+for directory in directories:
+    for fileNumber in range(20):
+        imagePath = f"Photos/{directory}/{fileNumber + 1}.jpg"
+        # loading and resizing image
+        image = cv2.imread(imagePath)
+        image = imutils.resize(image, width=600)
+        # main function that returns license plate text and location
+        licensePlateText, licensePlateContours = ANPR(image)
+        if licensePlateText is not None and licensePlateContours is not None:
+            # drawing contours on the original image
+            box = cv2.boxPoints(cv2.minAreaRect(licensePlateContours))
+            box = box.astype("int")
+            cv2.drawContours(image, [box], -1, (0, 0, 255), 2)
+            xCord, yCord, width, height = cv2.boundingRect(licensePlateContours)
 
-for fileNumber in range(20):
-    imagePath = f"Photos/Back/{fileNumber + 1}.jpg"
-    # loading and resizing image
-    image = cv2.imread(imagePath)
-    image = imutils.resize(image, width=600)
-    # main function that returns license plate text and location
-    licensePlateText, licensePlateContours = ANPR(image)
-    if licensePlateText is not None and licensePlateContours is not None:
-        # drawing contours on the original image
-        box = cv2.boxPoints(cv2.minAreaRect(licensePlateContours))
-        box = box.astype("int")
-        cv2.drawContours(image, [box], -1, (0, 0, 255), 2)
-        xCord, yCord, width, height = cv2.boundingRect(licensePlateContours)
-
-        # deleting additional characters and white spaces
-        licensePlateText = "".join(
-            [c if ord(c) < 128 else "" for c in licensePlateText]
-        ).strip()
-        # displaying license text over it
-        cv2.putText(
-            image,
-            licensePlateText,
-            (xCord, yCord - 20),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            (0, 0, 255),
-            2,
-        )
-        print(imagePath, licensePlateText)
-        cv2.imshow(f"Result {imagePath}", image)
-        cv2.waitKey(0)
+            # deleting additional characters and white spaces
+            licensePlateText = "".join(
+                [c if ord(c) < 128 else "" for c in licensePlateText]
+            ).strip()
+            # displaying license text over it
+            cv2.putText(
+                image,
+                licensePlateText,
+                (xCord, yCord - 20),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (0, 0, 255),
+                2,
+            )
+            print(imagePath, licensePlateText)
+            cv2.imshow(f"Result {imagePath}", image)
+            cv2.waitKey(0)

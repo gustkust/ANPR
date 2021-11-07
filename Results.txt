@@ -24,14 +24,14 @@ correctly found license plate -
 semi correctly found license plate - 
 correctly read license number - 
 semi correctly read license number - 
-additional notes - 
+additional notes - no success
 
 Read speed camera:
 correctly found license plate - 
 semi correctly found license plate - 
 correctly read license number - 
 semi correctly read license number - 
-additional notes - 
+additional notes - no success
 
 General notes:
 Rectangular grills with size similar to license plate get often confused for the plate.
